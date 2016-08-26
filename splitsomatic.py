@@ -95,8 +95,8 @@ def add_partner_splits(splits):
     splits (dict): The splits of a given bundle (without partner splits info)
   """
   for identifier in splits:
-    for payee_type in enumerate(splits[identifier]['order']):
-      payee_type[1]['partner_split'] = partner_split_list[payee_type[0]]
+    for index, payee_type in enumerate(splits[identifier]['order']):
+      payee_type['partner_split'] = partner_split_list[index]
     splits[identifier]['order'].append(partner_splits)
 
 
