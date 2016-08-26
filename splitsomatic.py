@@ -131,7 +131,7 @@ def polish_subsplits(subsplits):
   sum_sibling_splits = Decimal('0.0')
   for subsplit in subsplits:
     if subsplit['secondary_id'] != '0':
-        del subsplit['secondary_id']
+      del subsplit['secondary_id']
     sum_sibling_splits += subsplit['sibling_split']
   diff = Decimal('1.0') - sum_sibling_splits
   subsplits[0]['sibling_split'] += diff
