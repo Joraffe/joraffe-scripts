@@ -80,9 +80,9 @@ partner_splits = {
 }
 
 partner_split_list = [
-    Decimal('0.60'),
-    Decimal('0.10'),
-    Decimal('0.15'),
+  Decimal('0.60'),
+  Decimal('0.10'),
+  Decimal('0.15'),
 ]
 
 
@@ -170,22 +170,22 @@ def add_subsplits(csv_info, splits):
 
     # Extract payee info from SOTB
     for row in csv_info[identifier]:
-        if row['partner-name'] != '':
-          dev_subsplits.append(
-            {
-              'class': row['partner-payee'],
-              'name': row['partner-name'],
-              'secondary_id': row['partner-secondary-id'],
-            }
-          )
-        if row['charity-name'] != '' and row['charity-secondary-id'] != 'cyoc':
-          charity_subsplits.append(
-            {
-              'class': row['charity-name'],
-              'name': row['charity-payee'],
-              'secondary_id': row['charity-secondary-id'],
-            }
-          )
+      if row['partner-name'] != '':
+        dev_subsplits.append(
+          {
+            'class': row['partner-payee'],
+            'name': row['partner-name'],
+            'secondary_id': row['partner-secondary-id'],
+          }
+        )
+      if row['charity-name'] != '' and row['charity-secondary-id'] != 'cyoc':
+        charity_subsplits.append(
+          {
+            'class': row['charity-name'],
+            'name': row['charity-payee'],
+            'secondary_id': row['charity-secondary-id'],
+          }
+        )
 
     # Add "raw" sibling_split
     getcontext().prec = 9
