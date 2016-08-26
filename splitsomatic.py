@@ -203,20 +203,14 @@ def add_subsplits(csv_info, splits):
       charity_subsplits.append(cyoc_subsplit)
 
     # Delete subsplits if not needed
-    devs = splits[identifier]['order'][0]
-    charities = splits[identifier]['order'][1]
-    if len(dev_subsplits) == 1:
-      del devs['subsplit']
-      devs['class'] = dev_subsplits[0]['class']
-      devs['name'] = dev_subsplits[0]['name']
-    else:
-      devs['subsplit'] = dev_subsplits
-    if len(charity_subsplits) == 1:
-      del charities['subsplit']
-      charities['class'] = charity_subsplits[0]['class']
-      charities['name'] = charity_subsplits[0]['name']
-    else:
-      charities['subsplit'] = charity_subsplits
+    devs, charities = splits[identifier]['order']
+    for subsplit in (dev_subsplits, charity_subsplits):
+      if len(subsplit) == 1:
+        del devs['subsplit']
+        devs['class'] = subsplit[0]['class']
+        devs['name'] = subsplit[0]['name']
+      else:
+        devs['subsplit'] = subsplit
   return splits
 
 
