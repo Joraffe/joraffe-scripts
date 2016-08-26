@@ -194,7 +194,7 @@ def add_subsplits(csv_info, splits):
     for charity in charity_subsplits:
       charity['sibling_split'] = Decimal('1.0') / Decimal(len(charity_subsplits))
 
-    # Polish subsplits
+    # Polish subsplits so it adds up to 100% instead of 99.99999%
     dev_subsplits = polish_subsplits(dev_subsplits)
     charity_subsplits = polish_subsplits(charity_subsplits)
 
