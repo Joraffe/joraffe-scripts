@@ -163,12 +163,13 @@ class SOTBDisplayItem(object):
 
   def update_human_names(self):
     """Updates a DisplayItem's 'box-art-human-name' and 'human-name'"""
-    self.di_dict['struct']['default']['human-name'] = (
-      self.no_unicode(self.human_name)
-    )
-    self.di_dict['struct'][self.override]['box-art-human-name'] = (
-      self.no_unicode(self.human_name)
-    )
+    if self.override == 'bundle':
+      self.di_dict['struct']['default']['human-name'] = (
+        self.no_unicode(self.human_name)
+      )
+      self.di_dict['struct'][self.override]['box-art-human-name'] = (
+        self.no_unicode(self.human_name)
+      )
 
   def update_image_extra(self):
     """Updates a DisplayItem's 'image_extra' (preview pdf)"""
