@@ -2,7 +2,7 @@
 import os
 
 from libraries.aetycoon.prettydata import prettify
-from sotb_displayitems import SOTBDisplayItem
+from sotb_displayitem import SOTBDisplayItem
 
 
 def write_pretty_file(content, filename):
