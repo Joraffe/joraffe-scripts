@@ -6,12 +6,19 @@ import os
 import unidecode
 import urllib
 
+from decimal import getcontext
+from decimal import Decimal
 from libraries.aetycoon.prettydata import prettify
 from libraries.cdn import signurl
 from mutagen.mp3 import MP3
 
 
-# A list of all info on DisplayItems from the SOTB
+# Helper function for no unicode problems
+def no_unicode(text):
+  return unidecode.unidecode(unicode(text, encoding='utf-8'))
+
+
+# A list of all info on DisplayItems/Splits from the SOTB
 # Each item in the list = a row on the SOTB
 def sotb(csvfile):
   sotb_info = []
@@ -24,7 +31,7 @@ def sotb(csvfile):
 
 def di(row, existing_di=None):
   # Helper functions:
-  # image_extra(), no_unicode(),override(),
+  # image_extra(),override(),
   # partners(), platform_icons(), soundtrack_listing()
   def image_extra(machine_name):
     def pretty_filesize(size):
@@ -50,9 +57,6 @@ def di(row, existing_di=None):
         }
       }
     return pdf_preview
-
-  def no_unicode(text):
-    return unidecode.unidecode(unicode(text, encoding='utf-8'))
 
   def override(path):
     if row['override'] != 'bundle':
@@ -231,6 +235,107 @@ def write_pretty_file(content, filename):
       f.write(']')
   print "%s.py has been created" % filename
 
+
+def splits(sotb_info):
+  template = {
+    'initial': {
+      'order': []
+    },
+    'mpa': {
+      'order': []
+    }
+  }
+
+  def supersplits(sotb_info):
+    supersplits = []
+
+    def supersplit_gen(row):
+      supersplit = {
+        'class': row['payee'],
+        'name': no_unicode(row['split_name']),
+        'sibling_split': Decimal(row['sib_split']),
+        'subsplit': []
+      }
+      if row['invisible_splits'] != '0':
+        supersplit['hide_subsplit'] = 'true'
+      return supersplit
+
+    for row in sotb_info:
+      if row['payee'] != '0':
+        supersplit = supersplit_gen(row)
+        if supersplit not in supersplits:
+          supersplits.append(supersplit)
+
+    return supersplits
+
+  def subsplits(supersplit, override):
+    subsplits = []
+
+    # Helper function to generate the "base" of each subsplit
+    def subsplit_gen(row):
+      subsplit = {
+        'class': row['subsplit_payee'],
+        'name': no_unicode(row['subsplit_name'])
+      }
+      if row['subsplit_sid'] != '0':
+        subsplit['secondary_id'] = row['subsplit_sid']
+      return subsplit
+
+    # Adds the proper 'sibling_split'
+    def subsplit_siblingsplits(subsplits):
+      # Ensures all 'sibling_split' adds to Decimal('1')
+      def add_to_one(subsplits):
+        getcontext().prec = 10
+        sum_sibling_splits = Decimal('0.0')
+        for subsplit in subsplits:
+          sum_sibling_splits += subsplit['sibling_split']
+        diff = Decimal('1.0') - sum_sibling_splits
+        subsplits[0]['sibling_split'] += diff
+        return subsplits
+
+      getcontext().prec = 9
+      for subsplit in subsplits:
+        if subsplit['name'] == 'Choose Your Own Charity':
+          subsplit['sibling_split'] = Decimal('0.0')
+        elif subsplit['class'] in ('paypalgivingfund', 'tidesdaf') and 'Choose Your Own Charity' in list_charities:
+          subsplit['sibling_split'] = Decimal('1.0') / Decimal(len(subsplits) - 1)
+        else:
+          subsplit['sibling_split'] = Decimal('1.0') / Decimal(len(subsplits))
+      return add_to_one(subsplits)
+
+    for row in sotb_info:
+      if row['payee'] == supersplit['class'] and row[override] != '0':
+        subsplits.append(subsplit_gen(row))
+
+    list_charities = [sub['name'] for sub in subsplits]
+    return subsplit_siblingsplits(subsplits)
+
+  def process(splits):
+    for override in splits:
+      if override == 'mpa' and sotb_info[0]['mpa_date'] == '0':
+        continue
+      splits[override]['order'] = supersplits(sotb_info)
+
+    if splits['mpa'] == {'order': []}:
+      del splits['mpa']
+
+    for override in splits:
+
+      for split in splits[override]['order']:
+        split['subsplit'] = subsplits(split, override)
+
+    for override in splits:
+      splits[override]['order'].append({
+        'class': 'humblebundle',
+        'name': 'Humble Tip',
+        'sibling_split': Decimal('0.20')
+      })
+
+    print ''.join(prettify(splits))
+    return splits
+
+  return process(template)
+
 # Arguments for the script
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -262,6 +367,7 @@ if __name__ == '__main__':
     with open(args.export) as f:
       exec('existing_di = ' + f.read())
 
+  # Prepare DisplayItems
   edi_index = 0
   for row in sotb:
     if row['exists'] == '0':
@@ -270,4 +376,9 @@ if __name__ == '__main__':
       displayitems.append(di(row, existing_di[edi_index]))
       edi_index += 1
 
+  # Prepare Splits
+  bundle_splits = splits(sotb)
+
+  # Write files
+  write_pretty_file(splits, args.bundle + '_splits')
   write_pretty_file(displayitems, args.bundle)
