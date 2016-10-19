@@ -91,6 +91,14 @@ def di(row, existing_di=None):
       'mobile': {
         'android': ['android'],
         'iOS': ['iOS']
+      },
+      'video': {
+        'rifftrax': ['rifftrax'],
+        'video-download': ['hd', 'sd']
+      },
+      'music': {
+        'rifftrax': ['rifftrax'],
+        'audio-download': ['mp3', 'flac', 'ogg', 'wav']
       }
     }
     devices = row['device'].split('+')
@@ -184,7 +192,10 @@ def di(row, existing_di=None):
     'unavailable-platforms': {
       'logic': row['platform'] not in ('0',
                                       'windows+mac+linux',
-                                      'windows+mac+linux+android'),
+                                      'windows+mac+linux+android',
+                                      'android',
+                                      'rifftrax+mp3',
+                                      'rifftrax+sd+hd'),
       'value': platform_icons('unavailable')
     },
     'youtube-link': {
@@ -258,6 +269,8 @@ def splits(sotb_info):
       }
       if row['invisible_splits'] != '0':
         supersplit['hide_subsplit'] = 'true'
+      if row['partner_split'] != '0':
+        supersplit['partner_split'] = Decimal(row['partner_split'])
       return supersplit
 
     for row in sotb_info:
@@ -325,13 +338,23 @@ def splits(sotb_info):
         split['subsplit'] = subsplits(split, override)
 
     for override in splits:
-      splits[override]['order'].append({
+      humble_tip = {
         'class': 'humblebundle',
         'name': 'Humble Tip',
         'sibling_split': Decimal('0.20')
-      })
+      }
+      if sotb_info[0]['humble_partners'] != '0':
+        humble_tip['partner_split'] = Decimal('0.15')
+      splits[override]['order'].append(humble_tip)
 
-    print ''.join(prettify(splits))
+      if sotb_info[0]['humble_partners'] != '0':
+        splits[override]['order'].append({
+          'class': 'partner',
+          'name': 'Partner',
+          'partner_split': Decimal('0.15'),
+          'sibling_split': Decimal('0.0')
+        })
+
     return splits
 
   return process(template)
@@ -351,9 +374,20 @@ parser.add_argument(
   help='Csv file containing all info on DisplayItems from the SOTB',
 )
 parser.add_argument(
+  '-d',
+  '--displayitems',
+  help='Flag to indicate if you want DisplayItems to be made (y if yes)'
+)
+parser.add_argument(
   '-e',
   '--export',
-  help='Python file with existing DisplayItem info from Model Exporter',
+  help='Python file with existing DisplayItem info from Model Exporter. \
+        Only to be used if -d flag is on',
+)
+parser.add_argument(
+  '-s',
+  '--splits',
+  help='Flag to indicate if you want Splits to be made (y if yes)'
 )
 args = parser.parse_args()
 
@@ -361,24 +395,24 @@ args = parser.parse_args()
 if __name__ == '__main__':
   sotb = sotb(args.csvfile)
   existing_di = []
-  displayitems = []
+  output_di = []
 
   if args.export:
     with open(args.export) as f:
       exec('existing_di = ' + f.read())
 
   # Prepare DisplayItems
-  edi_index = 0
-  for row in sotb:
-    if row['exists'] == '0':
-      displayitems.append(di(row))
-    else:
-      displayitems.append(di(row, existing_di[edi_index]))
-      edi_index += 1
+  if args.displayitems == 'y':
+    edi_index = 0
+    for row in sotb:
+      if row['exists'] == '0':
+        output_di.append(di(row))
+      else:
+        output_di.append(di(row, existing_di[edi_index]))
+        edi_index += 1
+    write_pretty_file(output_di, args.bundle)
 
   # Prepare Splits
-  bundle_splits = splits(sotb)
-
-  # Write files
-  write_pretty_file(splits, args.bundle + '_splits')
-  write_pretty_file(displayitems, args.bundle)
+  if args.splits == 'y':
+    bundle_splits = splits(sotb)
+    write_pretty_file(bundle_splits, args.bundle + '_splits')
