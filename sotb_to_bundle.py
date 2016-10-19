@@ -405,11 +405,12 @@ if __name__ == '__main__':
   if args.displayitems == 'y':
     edi_index = 0
     for row in sotb:
-      if row['exists'] == '0':
-        output_di.append(di(row))
-      else:
-        output_di.append(di(row, existing_di[edi_index]))
-        edi_index += 1
+      if row['machine_name'] != '':
+        if row['exists'] == '0':
+          output_di.append(di(row))
+        else:
+          output_di.append(di(row, existing_di[edi_index]))
+          edi_index += 1
     write_pretty_file(output_di, args.bundle)
 
   # Prepare Splits
