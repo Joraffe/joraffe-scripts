@@ -165,7 +165,7 @@ def di(row, existing_di=None):
       'value': no_unicode(row['description'])
     },
     'developers': {
-      'logic': '0' != row['developer_name'] != '0' and row['developer_url'] != '0',
+      'logic': True,
       'value': partners('developer')
     },
     'front-page-art': {
@@ -185,7 +185,7 @@ def di(row, existing_di=None):
       'value': 'images/popups/%s_slideout.jpg' % row['machine_name']
     },
     'publishers': {
-      'logic': row['publisher_name'] != '0' and row['publisher_url'] != '0',
+      'logic': True,
       'value': partners('publisher')
     },
     'soundtrack-listing': {
@@ -320,11 +320,14 @@ def splits(sotb_info):
       return add_to_one(subsplits)
 
     for row in sotb_info:
-      if row['payee'] == supersplit['class'] and row[override] != '0':
+      if row['payee'] == supersplit['class'] and row[override] != '0' and row['subsplit_payee'] != '0':
         subsplits.append(subsplit_gen(row))
 
-    list_charities = [sub['name'] for sub in subsplits]
-    return subsplit_siblingsplits(subsplits)
+    if len(subsplits) != 0:
+      list_charities = [sub['name'] for sub in subsplits]
+      return subsplit_siblingsplits(subsplits)
+    else:
+      return []
 
   def process(splits):
     for override in splits:
@@ -339,6 +342,8 @@ def splits(sotb_info):
 
       for split in splits[override]['order']:
         split['subsplit'] = subsplits(split, override)
+        if len(split['subsplit']) == 0:
+          del split['subsplit']
 
     for override in splits:
       humble_tip = {
