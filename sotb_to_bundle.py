@@ -66,12 +66,15 @@ def di(row, existing_di=None):
 
   def partners(partner_type):
     def my_partners():
-      return [
-        {
-          partner_type + '-name': row[partner_type + '_name'],
-          partner_type + '-url': row[partner_type + '_url']
-        }
-      ]
+      if row[partner_type + '_name'] == '0' and row[partner_type + '_url'] == '0':
+        return []
+      else:
+        return [
+          {
+            partner_type + '-name': row[partner_type + '_name'],
+            partner_type + '-url': row[partner_type + '_url']
+          }
+        ]
     return my_partners
 
   def platform_icons(type_icons):
