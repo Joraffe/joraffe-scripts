@@ -58,6 +58,11 @@ def di(row, existing_di=None):
       }
     return pdf_preview
 
+  def desc_process(text):
+    if 'android' in row['device'].split('+'):
+      text += "<br /><br /><span style='text-decoration: underline;'>Size</span>: XX MB<br /><span style='text-decoration: underline;'>Requires Android</span>: XX and up<br /><br />Check out all the system requirements&nbsp;<a href='' target='_blank' rel='nofollow'>here</a>."
+    return no_unicode(text)
+
   def override(path):
     if row['override'] != 'bundle':
       return path + '_' + row['override']
@@ -162,7 +167,7 @@ def di(row, existing_di=None):
     },
     'description-text': {
       'logic': row['description'] != '0',
-      'value': no_unicode(row['description'])
+      'value': desc_process(row['description'])
     },
     'developers': {
       'logic': True,
