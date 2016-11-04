@@ -3,9 +3,11 @@ import argparse
 import csv
 import math
 import os
+import re
 import unidecode
 import urllib
 
+from datetime import datetime
 from decimal import getcontext
 from decimal import Decimal
 from libraries.aetycoon.prettydata import prettify
@@ -59,6 +61,9 @@ def di(row, existing_di=None):
     return pdf_preview
 
   def desc_process(text):
+    mc_match = re.search(r'(\D+:\s)(.*)\s(.*),\s(\d+)(.*)', text)
+    if mc_match:
+      text = "<p>Get 10% off one month of a Humble Monthly subscription!</p><p>NOTE: Expires on " + mc_match.group(2) + ' ' + mc_match.group(3) + ', ' + mc_match.group(4) + " at 10:00am Pacific. Eligible for new subscribers. Payment will be applied&nbsp;on&nbsp;the first payment for new subscribers.</p>"
     if 'android' in row['device'].split('+'):
       text += "<br /><br /><span style='text-decoration: underline;'>Size</span>: XX MB<br /><span style='text-decoration: underline;'>Requires Android</span>: XX and up<br /><br />Check out all the system requirements&nbsp;<a href='' target='_blank' rel='nofollow'>here</a>."
     return no_unicode(text)
@@ -170,7 +175,7 @@ def di(row, existing_di=None):
       'value': desc_process(row['description'])
     },
     'developers': {
-      'logic': True,
+      'logic': row['machine_name'] != 'humblemonthly_10percentoff_general',
       'value': partners('developer')
     },
     'front-page-art': {
@@ -190,7 +195,7 @@ def di(row, existing_di=None):
       'value': 'images/popups/%s_slideout.jpg' % row['machine_name']
     },
     'publishers': {
-      'logic': True,
+      'logic': row['machine_name'] != 'humblemonthly_10percentoff_general',
       'value': partners('publisher')
     },
     'soundtrack-listing': {
@@ -238,21 +243,6 @@ def di(row, existing_di=None):
     return di
 
   return process_di()
-
-
-# Function to write file to Desktop
-def write_pretty_file(content, filename):
-  output_directory = os.path.expanduser('~/Desktop/')
-  with open(os.path.join(output_directory, '%s.py' % filename), 'wb') as f:
-    if isinstance(content, dict):
-      f.write(''.join(prettify(content)))
-    elif isinstance(content, list):
-      f.write('[\n')
-      for c in content:
-        f.write(''.join(prettify(c)))
-        f.write('\n,\n')
-      f.write(']')
-  print "%s.py has been created" % filename
 
 
 def splits(sotb_info):
@@ -334,7 +324,7 @@ def splits(sotb_info):
     else:
       return []
 
-  def process(splits):
+  def process_splits(splits):
     for override in splits:
       if override == 'mpa' and sotb_info[0]['mpa_date'] == '0':
         continue
@@ -370,37 +360,239 @@ def splits(sotb_info):
 
     return splits
 
-  return process(template)
+  return process_splits(template)
+
+
+def ce(sotb_info):
+  ce_list = []
+  lessthan1_content_event = {
+    'identifier': 'lessthan1',
+    'subproduct-machine-names': [
+      'lessthan1',
+    ],
+    'tpkd-machine-names': [],
+    'coupon-definition-machine-names': [],
+    'requires-min-price': {
+      'US': [
+        Decimal('0.01'),
+        'USD',
+      ]
+    },
+    'requires-max-price': {
+      'US': [
+        Decimal('1'),
+        'USD',
+      ]
+    }
+  }
+
+  def find_highest_priced_tier(content_events):
+    def ce_ranker(content_event):
+      rank = 0
+      if 'requires-bta' in content_event:
+        rank += 2
+      if 'requires-min-price' in content_event:
+        rank += int(content_event['requires-min-price']['US'][0])
+      if 'requires-average-plus' in content_event:
+        rank += int(content_event['requires-min-price']['US'][0]) + 2
+      if 'start-dt' in content_event:
+        rank -= 5
+      return (content_event, rank)
+
+    def compare_ce_rank(ce1, ce2):
+      if ce1[1] > ce2[1]:
+        return ce1
+      else:
+        return ce2
+
+    ce_ranks = []
+    for ce in content_events:
+      ce_ranks.append(ce_ranker(ce))
+
+    highest_ce_rank = reduce(compare_ce_rank, ce_ranks)
+    return highest_ce_rank[0]['identifier']
+
+  def ce_generator(tier):
+    # Helper method to format warning-locked
+    def warn_formatter(match_obj, tier):
+      if match_obj:
+        if match_obj.group(1) == 'bta':
+          return 'Warning: You will not receive the beat-the-average content! Add just<%= money_difference %> more to unlock!'
+        elif match_obj.group(1) == 'average-plus':
+          return 'Warning: You will not receive the beat-the-average-plus content! Add just<%= money_difference %> more to unlock!'
+        elif match_obj.group(1) in ('bt', 'mpa_bt'):
+          return 'Warning: You will not receive the %s content! Add just<%%= money_difference %%> more to unlock!' % ('$' + match_obj.group(2))
+        else:
+          return ''
+      elif tier == 'initial' and sotb_info[0]['one_dollar_min'] != '0':
+        return 'Warning: You must pay at least $1.00 to receive content!'
+      else:
+        return ''
+
+    # Helper method to format display-section-identifiers
+    def dsi_formatter(tier):
+      if tier == 'initial':
+        return 'core_tier'
+      else:
+        return tier + '_tier'
+
+    # Create regular expressions to filter what type of ce
+    id_match = re.search(r'(\D+)(\d+)', tier)
+    if id_match:
+      ce_id, price = id_match.group(1), id_match.group(2)
+
+    # Initialize a templated ce with common keys/values
+    ce_template = {
+      'identifier': tier,
+      'subproduct-machine-names': [],
+      'tpkd-machine-names': [],
+      'coupon-definition-machine-names': []
+    }
+
+    # Add display-section-identifiers if needed
+    if tier != 'bt1':
+      ce_template['display-section-identifiers'] = [dsi_formatter(tier)]
+      ce_template['subheader'] = ''
+      ce_template['warning-locked'] = warn_formatter(id_match, tier)
+
+    # Add proper requires method based on re
+    if id_match:
+      if ce_id in ('bt', 'mpa_bt'):
+        ce_template['requires-min-price'] = {
+            'US': [
+                Decimal(price),
+                'USD'
+            ]
+        }
+      if ce_id == 'average-plus':
+        ce_template['requires-average-plus'] = {
+            'US': [
+                Decimal(price),
+                'USD'
+            ]
+        }
+      if ce_id == 'bta':
+        ce_template['requires-bta'] = True
+      if ce_id == 'free':
+        ce_template['requires-min-price'] = {
+            'US': [
+                Decimal('0.00'),
+                'USD'
+            ]
+        }
+    mpa_match = re.search(r'(mpa)(.*)', tier)
+
+    # This re used to see if it's an mpa item or not
+    if mpa_match:
+      ce_template['start-dt'] = datetime.strptime(sotb_info[0]['mpa_date'], '%m/%d/%y at %I')
+
+    # Output the altered ce_template
+    return ce_template
+
+  def ce_rewards(row, content_event):
+    reward_type_pairs = [
+      ('subproducts', 'subproduct-machine-names'),
+      ('android_subproducts', 'subproduct-machine-names'),
+      ('soundtrack_subproducts', 'subproduct-machine-names'),
+      ('tpkds', 'tpkd-machine-names'),
+      ('coupondefinitions', 'coupon-definition-machine-names')
+    ]
+    for sotb_reward, reward_type in reward_type_pairs:
+      if row[sotb_reward] != '0':
+        for reward in row[sotb_reward].split('\n'):
+          content_event[reward_type].append(reward)
+
+  def process_ce(content_events):
+    # Helper method to find a tier's corresponding ce
+    def find_ce(tier):
+      for ce in content_events:
+        if ce['identifier'] == tier:
+          return ce
+
+    def num_games(tier):
+      num = 0
+      for row in sotb_info:
+        if row['tier'] == tier:
+          num += 1
+      return num
+
+    tier_list = []
+    # collect unique tiers from sotb
+    for row in sotb_info:
+      if row['tier'] not in ('', '0') and row['tier'] not in tier_list:
+        tier_list.append(row['tier'])
+
+    # generate ce skeletons for each tier
+    for tier in tier_list:
+      content_events.append(ce_generator(tier))
+
+    # Add the proper rewards for each ce
+    for row in sotb_info:
+      if row['tier'] != '':
+        ce_rewards(row, find_ce(row['tier']))
+
+    # Add finishing touches to ce
+    for ce in content_events:
+      if 'subheader' in ce:
+        if ce['identifier'] == 'initial':
+          ce['subheader'] = 'Get %s titles!' % num_games(ce['identifier'])
+        elif ce['identifier'] == find_highest_priced_tier(content_events):
+          ce['subheader'] = 'Get all titles!'
+        else:
+          ce['subheader'] = 'Get %s more titles!' % num_games(ce['identifier'])
+
+    if sotb_info[0]['one_dollar_min'] == '1':
+      content_events.insert(0, lessthan1_content_event)
+
+    return content_events
+
+  return process_ce(ce_list)
+
+
+# Function to write file to Desktop
+def write_pretty_file(content, filename):
+  output_directory = os.path.expanduser('~/Desktop/')
+  with open(os.path.join(output_directory, '%s.py' % filename), 'wb') as f:
+    f.write(''.join(prettify(content)))
+  print "%s.py has been created" % filename
 
 # Arguments for the script
 parser = argparse.ArgumentParser()
 parser.add_argument(
-  '-b',
-  '--bundle',
-  help='The machinename of the bundle that will be using all of the \
-  DisplayItems edited by this script. This is also the name of the .py \
-  file created.',
+  'csvfile',
+  help='path to csv file containing all info on DisplayItems from the SOTB',
+  type=str
 )
 parser.add_argument(
-  '-c',
-  '--csvfile',
-  help='Csv file containing all info on DisplayItems from the SOTB',
+  'bundle',
+  help='the machinename of the bundle. Used for DisplayItem overrides and \
+  output file names',
+  type=str
 )
 parser.add_argument(
-  '-d',
+  '-di',
   '--displayitems',
-  help='Flag to indicate if you want DisplayItems to be made (y if yes)'
-)
-parser.add_argument(
-  '-e',
-  '--export',
-  help='Python file with existing DisplayItem info from Model Exporter. \
-        Only to be used if -d flag is on',
+  help='flag to indicate if you want DisplayItems to be made',
+  action='store_true'
 )
 parser.add_argument(
   '-s',
   '--splits',
-  help='Flag to indicate if you want Splits to be made (y if yes)'
+  help='flag to indicate if you want Splits to be made',
+  action='store_true'
+)
+parser.add_argument(
+  '-ce',
+  '--contentevents',
+  help='flag to indicate if you want Content Events to be made',
+  action='store_true'
+)
+parser.add_argument(
+  '-e',
+  '--export',
+  help='path to python file with existing DisplayItem info from model \
+        exporter. Only to be used if -d flag is on',
+  type=str
 )
 args = parser.parse_args()
 
@@ -415,7 +607,7 @@ if __name__ == '__main__':
       exec('existing_di = ' + f.read())
 
   # Prepare DisplayItems
-  if args.displayitems == 'y':
+  if args.displayitems:
     edi_index = 0
     for row in sotb:
       if row['machine_name'] != '':
@@ -427,6 +619,10 @@ if __name__ == '__main__':
     write_pretty_file(output_di, args.bundle)
 
   # Prepare Splits
-  if args.splits == 'y':
+  if args.splits:
     bundle_splits = splits(sotb)
     write_pretty_file(bundle_splits, args.bundle + '_splits')
+
+  if args.contentevents:
+    bundle_ce = ce(sotb)
+    write_pretty_file(bundle_ce, args.bundle + '_contentevents')
