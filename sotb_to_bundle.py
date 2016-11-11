@@ -175,7 +175,7 @@ def di(row, existing_di=None):
       'value': desc_process(row['description'])
     },
     'developers': {
-      'logic': row['machine_name'] != 'humblemonthly_10percentoff_general',
+      'logic': row['machine_name'] != 'humblemonthly_10percentoff_general' or row['exists'] == '0',
       'value': partners('developer')
     },
     'front-page-art': {
@@ -195,7 +195,7 @@ def di(row, existing_di=None):
       'value': 'images/popups/%s_slideout.jpg' % row['machine_name']
     },
     'publishers': {
-      'logic': row['machine_name'] != 'humblemonthly_10percentoff_general',
+      'logic': row['machine_name'] != 'humblemonthly_10percentoff_general' or row['exists'] == '0',
       'value': partners('publisher')
     },
     'soundtrack-listing': {
@@ -441,6 +441,9 @@ def ce(sotb_info):
     if id_match:
       ce_id, price = id_match.group(1), id_match.group(2)
 
+    if tier == 'mpa_':
+      tier = 'mpa'
+
     # Initialize a templated ce with common keys/values
     ce_template = {
       'identifier': tier,
@@ -616,7 +619,7 @@ if __name__ == '__main__':
         else:
           output_di.append(di(row, existing_di[edi_index]))
           edi_index += 1
-    write_pretty_file(output_di, args.bundle)
+    write_pretty_file(output_di, args.bundle + '_displayitems')
 
   # Prepare Splits
   if args.splits:
