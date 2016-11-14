@@ -175,7 +175,7 @@ def di(row, existing_di=None):
       'value': desc_process(row['description'])
     },
     'developers': {
-      'logic': row['machine_name'] != 'humblemonthly_10percentoff_general' or row['exists'] == '0',
+      'logic': True,
       'value': partners('developer')
     },
     'front-page-art': {
@@ -195,7 +195,7 @@ def di(row, existing_di=None):
       'value': 'images/popups/%s_slideout.jpg' % row['machine_name']
     },
     'publishers': {
-      'logic': row['machine_name'] != 'humblemonthly_10percentoff_general' or row['exists'] == '0',
+      'logic': True,
       'value': partners('publisher')
     },
     'soundtrack-listing': {
@@ -240,6 +240,13 @@ def di(row, existing_di=None):
           di['struct'][row['override']][key] = di.get(key, value())
         else:
           di['struct'][row['override']][key] = di.get(key, value)
+
+    # delete empty publishers if not needed
+    if len(di['struct'][row['override']]['developers']) == 0 and 'developers' not in di['struct']['default']:
+      del di['struct'][row['override']]['developers']
+    if len(di['struct'][row['override']]['publishers']) == 0 and 'publishers' not in di['struct']['default']:
+      del di['struct'][row['override']]['publishers']
+
     return di
 
   return process_di()
